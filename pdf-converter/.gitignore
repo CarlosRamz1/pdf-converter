@@ -1,0 +1,22 @@
+# Entorno virtual
+pdf-converter/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Archivos de prueba
+test_files/
+*.pdf
+*.docx
+*.xlsx
+temp/
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
