@@ -282,57 +282,139 @@ def extraer_texto_con_ocr(ruta_pdf):
         return None
 
 
-def main():
-    """Función principal del programa"""
-    print("=== PDF Converter ===")
-    print("Versión: 1.0.3 - PDF a Word, Excel y OCR")
+def mostrar_menu():
+    """Muestra el menú principal del programa"""
+    print("\n" + "="*50)
+    print("🔄 PDF CONVERTER - MENÚ PRINCIPAL")
+    print("="*50)
+    print("1️⃣  Convertir PDF a Word")
+    print("2️⃣  Convertir PDF a Excel") 
+    print("3️⃣  Convertir PDF a Word y Excel")
+    print("4️⃣  Listar archivos PDF disponibles")
+    print("5️⃣  Salir del programa")
+    print("="*50)
+
+def listar_pdfs():
+    """Lista todos los archivos PDF disponibles"""
+    pdfs = [f for f in os.listdir('.') if f.endswith('.pdf')]
     
-    # Mostrar PDFs disponibles
+    if not pdfs:
+        print("❌ No se encontraron archivos PDF en la carpeta actual")
+        return []
+    
     print("\n📁 Archivos PDF disponibles:")
-    pdfs_disponibles = []
-    for archivo in os.listdir('.'):
-        if archivo.endswith('.pdf'):
-            pdfs_disponibles.append(archivo)
-            print(f"  - {archivo}")
+    for i, pdf in enumerate(pdfs, 1):
+        tamano = os.path.getsize(pdf)
+        tamano_mb = tamano / (1024*1024)
+        print(f"  {i}. {pdf} ({tamano_mb:.1f} MB)")
     
-    if not pdfs_disponibles:
-        print("❌ No se encontraron archivos PDF")
-        return
+    return pdfs
+
+def seleccionar_pdf():
+    """Permite al usuario seleccionar un archivo PDF"""
+    pdfs = listar_pdfs()
     
-    # Pedir al usuario qué PDF usar
-    nombre_pdf = input("\n📝 Escribe el nombre del PDF a convertir (o Enter para usar el primero): ").strip()
+    if not pdfs:
+        return None
     
-    if not nombre_pdf:
-        nombre_pdf = pdfs_disponibles[0]
-    
-    if not os.path.exists(nombre_pdf):
-        print(f"❌ No se encontró el archivo {nombre_pdf}")
-        return
-    
-    print(f"✅ Usando archivo: {nombre_pdf}")
-    print(f"Tamaño del archivo: {os.path.getsize(nombre_pdf)} bytes")
-    
-    # Probar la lectura (incluye OCR automático)
-    print(f"\n🔄 Analizando archivo...")
-    texto = leer_pdf_mejorado(nombre_pdf)
-    
-    if texto:
-        print("\n--- TEXTO EXTRAÍDO ---")
-        print(texto[:500] + "..." if len(texto) > 500 else texto)
+    while True:
+        try:
+            opcion = input(f"\n📝 Selecciona un PDF (1-{len(pdfs)}) o 'q' para volver: ").strip()
+            
+            if opcion.lower() == 'q':
+                return None
+            
+            indice = int(opcion) - 1
+            if 0 <= indice < len(pdfs):
+                return pdfs[indice]
+            else:
+                print(f"❌ Opción inválida. Ingresa un número entre 1 y {len(pdfs)}")
         
-        # Convertir a Word
+        except ValueError:
+            print("❌ Por favor ingresa un número válido")
+
+def procesar_conversion(pdf_seleccionado, tipo_conversion):
+    """
+    Procesa la conversión según el tipo seleccionado
+    
+    Args:
+        pdf_seleccionado (str): Nombre del archivo PDF
+        tipo_conversion (str): 'word', 'excel', 'ambos'
+    """
+    print(f"\n🔄 Procesando: {pdf_seleccionado}")
+    print(f"📄 Tamaño: {os.path.getsize(pdf_seleccionado)} bytes")
+    
+    # Analizar el archivo primero
+    print("\n🔍 Analizando archivo...")
+    texto = leer_pdf_mejorado(pdf_seleccionado)
+    
+    if not texto:
+        print("❌ No se pudo extraer texto del archivo")
+        return
+    
+    # Mostrar muestra del texto
+    print("\n📋 Muestra del texto extraído:")
+    print("-" * 40)
+    print(texto[:200] + "..." if len(texto) > 200 else texto)
+    print("-" * 40)
+    
+    # Realizar conversiones
+    if tipo_conversion in ['word', 'ambos']:
         print("\n🔄 Convirtiendo a Word...")
-        archivo_word = pdf_a_word(nombre_pdf)
+        archivo_word = pdf_a_word(pdf_seleccionado)
         if archivo_word:
-            print(f"✅ Conversión a Word exitosa: {archivo_word}")
-        
-        # Convertir a Excel
+            print(f"✅ Word creado: {archivo_word}")
+        else:
+            print("❌ Error al crear archivo Word")
+    
+    if tipo_conversion in ['excel', 'ambos']:
         print("\n🔄 Convirtiendo a Excel...")
-        archivo_excel = pdf_a_excel(nombre_pdf)
+        archivo_excel = pdf_a_excel(pdf_seleccionado)
         if archivo_excel:
-            print(f"✅ Conversión a Excel exitosa: {archivo_excel}")
-    else:
-        print("❌ No se pudo extraer texto del PDF")
+            print(f"✅ Excel creado: {archivo_excel}")
+        else:
+            print("❌ Error al crear archivo Excel")
+    
+    print("\n✅ ¡Conversión completada!")
+
+def main():
+    """Función principal con menú interactivo"""
+    print("🚀 PDF Converter v1.0.3 - Iniciando...")
+    print("💡 Soporte para PDFs normales y escaneados (OCR)")
+    
+    while True:
+        mostrar_menu()
+        
+        opcion = input("\n🎯 Selecciona una opción: ").strip()
+        
+        if opcion == '1':
+            pdf = seleccionar_pdf()
+            if pdf:
+                procesar_conversion(pdf, 'word')
+        
+        elif opcion == '2':
+            pdf = seleccionar_pdf()
+            if pdf:
+                procesar_conversion(pdf, 'excel')
+        
+        elif opcion == '3':
+            pdf = seleccionar_pdf()
+            if pdf:
+                procesar_conversion(pdf, 'ambos')
+        
+        elif opcion == '4':
+            listar_pdfs()
+        
+        elif opcion == '5':
+            print("\n👋 ¡Gracias por usar PDF Converter!")
+            print("🔗 Proyecto: https://github.com/carlosramz/pdf-converter")
+            break
+        
+        else:
+            print("❌ Opción inválida. Por favor selecciona 1-5")
+        
+        # Pausa antes de mostrar el menú de nuevo
+        input("\n⏸️  Presiona Enter para continuar...")
 
 if __name__ == "__main__":
     main()
