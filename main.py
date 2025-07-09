@@ -11,7 +11,7 @@ import pdfplumber
 
 def leer_pdf_mejorado(ruta_archivo):
     """
-    Lee un archivo PDF usando pdfplumber para mejor extracción de texto
+    Lee un archivo PDF usando pdfplumber para texto normal o OCR para PDFs escaneados
     
     Args:
         ruta_archivo (str): Ruta al archivo PDF
@@ -22,6 +22,7 @@ def leer_pdf_mejorado(ruta_archivo):
     try:
         import pdfplumber
         
+        # Primero intentar extraer texto normal
         texto_completo = ""
         
         with pdfplumber.open(ruta_archivo) as pdf:
@@ -32,6 +33,11 @@ def leer_pdf_mejorado(ruta_archivo):
                 if texto_pagina:
                     texto_completo += texto_pagina + "\n"
                 print(f"Página {num_pagina} procesada")
+        
+        # Si no hay texto suficiente, usar OCR
+        if len(texto_completo.strip()) < 50:
+            print("🔍 Texto insuficiente detectado - Usando OCR...")
+            texto_completo = extraer_texto_con_ocr(ruta_archivo)
         
         return texto_completo
         
@@ -196,75 +202,137 @@ def detectar_tipo_contenido(linea):
     else:
         return "TEXTO", 3
 
-
-def detectar_tipo_contenido(linea):
+    
+def detectar_pdf_escaneado(ruta_pdf):
     """
-    Detecta el tipo de contenido de una línea
+    Detecta si un PDF es escaneado (contiene solo imágenes)
     
     Args:
-        linea (str): Línea de texto a analizar
+        ruta_pdf (str): Ruta al archivo PDF
         
     Returns:
-        tuple: (tipo_contenido, nivel)
+        bool: True si es escaneado, False si tiene texto
     """
-    # Título principal: mayúsculas, corto
-    if linea.isupper() and len(linea) <= 50:
-        return "TÍTULO", 1
+    try:
+        import pdfplumber
+        
+        with pdfplumber.open(ruta_pdf) as pdf:
+            # Revisar las primeras 3 páginas para detectar
+            paginas_revisar = min(3, len(pdf.pages))
+            
+            for i in range(paginas_revisar):
+                texto = pdf.pages[i].extract_text()
+                if texto and len(texto.strip()) > 50:  # Si hay texto sustancial
+                    return False
+            
+            return True  # No encontró texto = PDF escaneado
+            
+    except Exception as e:
+        print(f"Error al detectar tipo de PDF: {str(e)}")
+        return False
+
+def extraer_texto_con_ocr(ruta_pdf):
+    """
+    Extrae texto de un PDF escaneado usando OCR
     
-    # Subtítulo: primera letra mayúscula, longitud media
-    elif linea[0].isupper() and len(linea) <= 100 and not linea.endswith('.'):
-        return "SUBTÍTULO", 2
-    
-    # Párrafo: texto normal, puede terminar en punto
-    elif len(linea) > 20:
-        return "PÁRRAFO", 3
-    
-    # Texto corto: elementos diversos
-    else:
-        return "TEXTO", 3
+    Args:
+        ruta_pdf (str): Ruta al archivo PDF
+        
+    Returns:
+        str: Texto extraído con OCR
+    """
+    try:
+        import fitz  # PyMuPDF
+        import pytesseract
+        from PIL import Image
+        import io
+        
+        # Configurar ruta de Tesseract (ajusta si es necesario)
+        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        
+        texto_completo = ""
+        
+        # Abrir PDF
+        doc = fitz.open(ruta_pdf)
+        print(f"PDF escaneado detectado - {len(doc)} páginas para OCR")
+        
+        for num_pagina in range(len(doc)):
+            pagina = doc[num_pagina]
+            
+            # Convertir página a imagen
+            mat = fitz.Matrix(2.0, 2.0)  # Zoom 2x para mejor calidad
+            pix = pagina.get_pixmap(matrix=mat)
+            img_data = pix.tobytes("png")
+            
+            # Procesar con OCR
+            img = Image.open(io.BytesIO(img_data))
+            texto_pagina = pytesseract.image_to_string(img, lang='eng')  # Inglés
+            
+            texto_completo += texto_pagina + "\n"
+            print(f"Página {num_pagina + 1} procesada con OCR")
+        
+        doc.close()
+        return texto_completo
+        
+    except ImportError as e:
+        print(f"❌ Error: Falta instalar PyMuPDF: pip install PyMuPDF")
+        return None
+    except Exception as e:
+        print(f"❌ Error en OCR: {str(e)}")
+        return None
 
 
 def main():
     """Función principal del programa"""
     print("=== PDF Converter ===")
-    print("Versión: 1.0.2 - PDF a Word y Excel")
+    print("Versión: 1.0.3 - PDF a Word, Excel y OCR")
     
-    # Probar la función con un PDF
-    nombre_pdf = "CODIGO DE ETICA Y CONDUCTA.pdf"
+    # Mostrar PDFs disponibles
+    print("\n📁 Archivos PDF disponibles:")
+    pdfs_disponibles = []
+    for archivo in os.listdir('.'):
+        if archivo.endswith('.pdf'):
+            pdfs_disponibles.append(archivo)
+            print(f"  - {archivo}")
     
-    print(f"Buscando archivo: {nombre_pdf}")
-    print(f"Directorio actual: {os.getcwd()}")
+    if not pdfs_disponibles:
+        print("❌ No se encontraron archivos PDF")
+        return
     
-    if os.path.exists(nombre_pdf):
-        print(f"✅ Archivo encontrado: {nombre_pdf}")
-        print(f"Tamaño del archivo: {os.path.getsize(nombre_pdf)} bytes")
-        
-        print(f"\nProbando leer el archivo...")
-        texto = leer_pdf_mejorado(nombre_pdf)
-        
-        if texto:
-            print("\n--- TEXTO EXTRAÍDO ---")
-            print(texto[:200] + "..." if len(texto) > 200 else texto)
-            
-            # Convertir a Word
-            print("\n🔄 Convirtiendo a Word...")
-            archivo_word = pdf_a_word(nombre_pdf)
-            if archivo_word:
-                print(f"✅ Conversión a Word exitosa: {archivo_word}")
-            
-            # Convertir a Excel
-            print("\n🔄 Convirtiendo a Excel...")
-            archivo_excel = pdf_a_excel(nombre_pdf)
-            if archivo_excel:
-                print(f"✅ Conversión a Excel exitosa: {archivo_excel}")
-        else:
-            print("❌ No se pudo extraer texto del PDF")
-    else:
+    # Pedir al usuario qué PDF usar
+    nombre_pdf = input("\n📝 Escribe el nombre del PDF a convertir (o Enter para usar el primero): ").strip()
+    
+    if not nombre_pdf:
+        nombre_pdf = pdfs_disponibles[0]
+    
+    if not os.path.exists(nombre_pdf):
         print(f"❌ No se encontró el archivo {nombre_pdf}")
-        print("Archivos PDF disponibles:")
-        for archivo in os.listdir('.'):
-            if archivo.endswith('.pdf'):
-                print(f"  - {archivo}")
+        return
+    
+    print(f"✅ Usando archivo: {nombre_pdf}")
+    print(f"Tamaño del archivo: {os.path.getsize(nombre_pdf)} bytes")
+    
+    # Probar la lectura (incluye OCR automático)
+    print(f"\n🔄 Analizando archivo...")
+    texto = leer_pdf_mejorado(nombre_pdf)
+    
+    if texto:
+        print("\n--- TEXTO EXTRAÍDO ---")
+        print(texto[:500] + "..." if len(texto) > 500 else texto)
+        
+        # Convertir a Word
+        print("\n🔄 Convirtiendo a Word...")
+        archivo_word = pdf_a_word(nombre_pdf)
+        if archivo_word:
+            print(f"✅ Conversión a Word exitosa: {archivo_word}")
+        
+        # Convertir a Excel
+        print("\n🔄 Convirtiendo a Excel...")
+        archivo_excel = pdf_a_excel(nombre_pdf)
+        if archivo_excel:
+            print(f"✅ Conversión a Excel exitosa: {archivo_excel}")
+    else:
+        print("❌ No se pudo extraer texto del PDF")
 
 if __name__ == "__main__":
     main()
